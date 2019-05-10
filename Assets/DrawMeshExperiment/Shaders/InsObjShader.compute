@@ -1,0 +1,52 @@
+﻿#pragma kernel Init
+
+// データの受け渡しは DirectXでは4byte単位がいいらしい。[参考](http://blog.livedoor.jp/akinow/archives/52539647.html)
+struct InsObj {
+    float3 pos;
+    float3 vel;
+    float3 acc;
+    float3 rot;
+    float3 angVel;
+    float3 scale;
+    float4 col;
+};
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWStructuredBuffer<InsObj> InsObjs;
+
+float4 PosRange;
+
+
+// ランダム関数 [参考](http://tips.hecomi.com/entry/2016/05/08/160626)
+float rand(float2 seed)
+{
+    return frac(sin(dot(seed.xy, float2(12.9898, 78.233))) * 43758.5453);
+}
+
+float3 rand3(float2 seed)
+{
+    return float3(rand(seed * 1), rand(seed * 2), rand(seed * 3));
+}
+
+float4 rand4(float2 seed)
+{
+    return float4(rand(seed * 1), rand(seed * 2), rand(seed * 3), rand(seed * 4));
+}
+
+[numthreads(1, 1, 1)]//Instans数分だけGroupがあるのでthread数は1でok
+void Init(uint id : SV_DispatchThreadID)//スレッドが1つなので uintで受ければok
+{
+    // TODO: insert actual code here!
+    InsObj obj;
+    float2 seed = float2(id + 1, id + 2);
+    obj.pos = 2.0*(rand3(seed) - 0.5)*PosRange.xyz;
+
+    obj.vel = float3(0.0, 0.0, 0.0);
+    obj.acc = float3(0.0, 0.0, 0.0);
+    obj.rot = rand3(seed + 3) * 100;
+    obj.angVel = float3(0.0, 0.0, 0.0);
+    obj.scale = 0.5 + rand3(seed + 3) * 10;
+    obj.col = float4(0.0, 0.0, 0.0, 1.0);
+    InsObjs[id] = obj;
+}
