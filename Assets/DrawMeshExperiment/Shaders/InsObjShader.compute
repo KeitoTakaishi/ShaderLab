@@ -1,4 +1,6 @@
 ﻿#pragma kernel Init
+#pragma kernel Update
+
 
 // データの受け渡しは DirectXでは4byte単位がいいらしい。[参考](http://blog.livedoor.jp/akinow/archives/52539647.html)
 struct InsObj {
@@ -37,16 +39,45 @@ float4 rand4(float2 seed)
 [numthreads(1, 1, 1)]//Instans数分だけGroupがあるのでthread数は1でok
 void Init(uint id : SV_DispatchThreadID)//スレッドが1つなので uintで受ければok
 {
-    // TODO: insert actual code here!
     InsObj obj;
     float2 seed = float2(id + 1, id + 2);
-    obj.pos = 2.0*(rand3(seed) - 0.5)*PosRange.xyz;
+    // ランダム配置
+    obj.pos = float3(10, 20, 30);
+    obj.pos += (rand3(seed) - 0.5) * 500;
+    //obj.pos = 2.0*(rand3(seed)-0.5)*PosRange.xyz;
 
     obj.vel = float3(0.0, 0.0, 0.0);
     obj.acc = float3(0.0, 0.0, 0.0);
     obj.rot = rand3(seed + 3) * 100;
-    obj.angVel = float3(0.0, 0.0, 0.0);
-    obj.scale = 0.5 + rand3(seed + 3) * 10;
+    obj.angVel = (rand3(seed + 3) - 0.5) * 5;
+    obj.scale = 0.1 + rand3(seed + 3)*30.0;
     obj.col = float4(0.0, 0.0, 0.0, 1.0);
+    InsObjs[id] = obj;
+}
+
+
+float time;
+float3 Attractor;
+
+
+[numthreads(1, 1, 1)]
+void Update(uint id : SV_DispatchThreadID) {
+    InsObj obj = InsObjs[id];
+
+    obj.rot += obj.angVel*time;
+
+    // ローレンツ方程式で速度更新  別に一発でやってもいいんだけど。
+    // こっちの方が顕にWikipediaの式との対応してる感がでますよね。
+    float p = Attractor.x;
+    float r = Attractor.y;
+    float b = Attractor.z;
+    obj.vel.x = 5.0*(-p * obj.pos.x + p * obj.pos.y);
+    obj.vel.y = -obj.pos.x*obj.pos.z + r * obj.pos.x - obj.pos.y;
+    obj.vel.z = 5.0*(obj.pos.x*obj.pos.y - b * obj.pos.z);
+
+    obj.pos += obj.vel*time*0.001;
+    // 色も速さベクトルでちょっと変える
+    obj.col = float4(normalize(obj.vel), 1);
+
     InsObjs[id] = obj;
 }

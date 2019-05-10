@@ -4,16 +4,20 @@ using System.Runtime.InteropServices;// Marshal.SizeOf() 使えるようにな�
 
 public class Instancing : MonoBehaviour
 {
-
     public int instanceCount = 100000;
     public Mesh instanceMesh;
     public Material instanceMaterial;
     public ComputeShader insObjShader;
+    // Compute Shader操作用
+    public Vector3 attractor = new Vector3(10, 23, 8 / 3);
 
     private int cachedInstanceCount = -1;
     private ComputeBuffer insObjBuffer;
     private ComputeBuffer argsBuffer;
     private uint[] args = new uint[5] { 0, 0, 0, 0, 0 };
+
+    int initKernel;
+    int updateKernel;
 
     struct InsObj
     {
@@ -39,13 +43,15 @@ public class Instancing : MonoBehaviour
         // Update starting position buffer
         if (cachedInstanceCount != instanceCount)
             UpdateBuffers();
+        else
+            updateInsObjBuffer();
 
         // Pad input
         if (Input.GetAxisRaw("Horizontal") != 0.0f)
             instanceCount = (int)Mathf.Clamp(instanceCount + Input.GetAxis("Horizontal") * 40000, 1.0f, 5000000.0f);
 
         // Render
-        Graphics.DrawMeshInstancedIndirect(instanceMesh, 0, instanceMaterial, new Bounds(Vector3.zero, new Vector3(100.0f, 100.0f, 100.0f)), argsBuffer);
+        Graphics.DrawMeshInstancedIndirect(instanceMesh, 0, instanceMaterial, new Bounds(Vector3.zero, new Vector3(10000.0f, 10000.0f, 10000.0f)), argsBuffer);
     }
 
     void OnGUI()
@@ -57,18 +63,28 @@ public class Instancing : MonoBehaviour
 
     void InitInsObjBuffer()
     {
+        initKernel = insObjShader.FindKernel("Init");
+        updateKernel = insObjShader.FindKernel("Update");
+
         if (insObjBuffer != null)
             insObjBuffer.Release();
         insObjBuffer = new ComputeBuffer(instanceCount, Marshal.SizeOf(typeof(InsObj)));
 
-        var initKernel = insObjShader.FindKernel("Init");
         insObjShader.SetBuffer(initKernel, "InsObjs", insObjBuffer);
 
-        var posRange = new Vector3(1000.0f, 500.0f, 1000.0f);
+        var posRange = new Vector3(2000.0f, 500.0f, 2000.0f);
         insObjShader.SetVector("PosRange", posRange);
         insObjShader.Dispatch(initKernel, instanceCount, 1, 1);
     }
 
+    void updateInsObjBuffer()
+    {
+        insObjShader.SetBuffer(updateKernel, "InsObjs", insObjBuffer);
+        insObjShader.SetFloat("time", Time.deltaTime);
+        insObjShader.SetVector("Attractor", attractor);
+        insObjShader.Dispatch(updateKernel, instanceCount, 1, 1);
+        instanceMaterial.SetBuffer("InsObjs", insObjBuffer);
+    }
     void UpdateBuffers()
     {
 
